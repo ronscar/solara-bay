@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Solara Bay — an open-world crime game</title>
+<style>
+  :root {
+    --ink: #fff7e8; --muted: #ffd9a0; --accent: #ffb02e; --danger: #ff3b30;
+    --police: #4da3ff; --panel: rgba(12, 18, 28, .72); --line: rgba(255, 255, 255, .22);
+    --font-ui: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-num: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #87bfe8; color: var(--ink); font-family: var(--font-ui); }
+  body > canvas { position: fixed; inset: 0; display: block; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
+  #hud[hidden] { display: none; }
+
+  #money { position: fixed; top: 14px; right: 214px; font-family: var(--font-num); font-size: 22px; font-weight: 700; color: var(--accent); text-shadow: 0 2px 6px rgba(0,0,0,.7); text-align: right; }
+  #money small { display: block; font-size: 11px; color: var(--muted); letter-spacing: .14em; font-weight: 400; }
+  #wanted { position: fixed; top: 14px; right: 24px; font-size: 26px; letter-spacing: 2px; color: var(--danger); text-shadow: 0 2px 8px rgba(0,0,0,.8); }
+  #wanted .off { color: rgba(255,255,255,.28); }
+  #healthbox { position: fixed; left: 24px; bottom: 24px; width: 230px; text-shadow: 0 2px 6px rgba(0,0,0,.7); }
+  #health-num { font-family: var(--font-num); font-size: 34px; line-height: 1; }
+  #health-bar { height: 8px; background: rgba(0,0,0,.55); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  #health-fill { height: 100%; width: 100%; background: #7ddc5a; }
+  #health-fill.low { background: var(--danger); }
+  #armor-label { font-size: 11px; color: var(--muted); letter-spacing: .12em; margin-top: 5px; }
+  #objective { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); max-width: 520px; text-align: center; text-shadow: 0 2px 8px rgba(0,0,0,.85); }
+  #objective-title { font-size: 17px; font-weight: 700; letter-spacing: .04em; }
+  #objective-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  #objective-dist { font-family: var(--font-num); font-size: 12px; color: var(--accent); margin-top: 2px; }
+  #minimap-wrap { position: fixed; right: 24px; bottom: 24px; }
+  #minimap { display: block; width: 180px; height: 180px; border: 2px solid var(--line); border-radius: 6px; background: rgba(10, 20, 30, .8); box-shadow: 0 4px 18px rgba(0,0,0,.5); }
+  #speed { position: fixed; right: 24px; bottom: 218px; font-family: var(--font-num); font-size: 15px; color: var(--ink); text-shadow: 0 2px 6px rgba(0,0,0,.8); text-align: right; }
+  #speed b { font-size: 30px; }
+  #hint { position: fixed; left: 280px; bottom: 24px; font-size: 12px; color: var(--muted); text-shadow: 0 1px 4px rgba(0,0,0,.8); line-height: 1.7; }
+  #toast { position: fixed; left: 50%; top: 34%; transform: translate(-50%,-50%); text-align: center; text-shadow: 0 2px 14px rgba(0,0,0,.9); }
+  #toast-title { font-size: 42px; font-weight: 800; letter-spacing: .02em; }
+  #toast-sub { font-size: 16px; color: var(--muted); margin-top: 6px; }
+  #toast[hidden], #banner[hidden] { display: none; }
+  #banner { position: fixed; left: 50%; top: 22%; transform: translate(-50%,-50%); font-size: 15px; color: var(--accent); text-shadow: 0 2px 8px rgba(0,0,0,.9); text-align: center; }
+  #crosshair { position: fixed; left: 50%; top: 50%; width: 20px; height: 20px; transform: translate(-50%,-50%); }
+  #crosshair[hidden] { display: none; }
+  #crosshair i { position: absolute; background: var(--ink); opacity: .95; box-shadow: 0 0 4px rgba(0,0,0,.9); }
+  #crosshair i:nth-child(1) { left: 9px; top: 0; width: 2px; height: 6px; }
+  #crosshair i:nth-child(2) { left: 9px; bottom: 0; width: 2px; height: 6px; }
+  #crosshair i:nth-child(3) { top: 9px; left: 0; height: 2px; width: 6px; }
+  #crosshair i:nth-child(4) { top: 9px; right: 0; height: 2px; width: 6px; }
+  #ammo { position: fixed; right: 24px; bottom: 218px; text-align: right; text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  #ammo[hidden] { display: none; }
+  #ammo-mag { font-family: var(--font-num); font-size: 34px; }
+  #weapon-name { font-size: 12px; color: var(--muted); letter-spacing: .1em; }
+  #interact { position: fixed; left: 50%; bottom: 30%; transform: translateX(-50%); font-size: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; }
+  #interact[hidden] { display: none; }
+  #interact kbd, .keys kbd { padding: 2px 7px; border: 1px solid var(--line); border-radius: 4px; font-family: var(--font-num); font-size: 12px; background: rgba(255,255,255,.12); }
+  #radio { position: fixed; left: 280px; bottom: 62px; font-size: 12px; color: var(--accent); text-shadow: 0 1px 4px rgba(0,0,0,.8); letter-spacing: .08em; }
+  #clock { position: fixed; left: 24px; top: 14px; font-family: var(--font-num); font-size: 15px; color: var(--ink); text-shadow: 0 2px 6px rgba(0,0,0,.8); }
+  #clock small { display: block; font-size: 10px; color: var(--muted); letter-spacing: .14em; }
+  #stats-list { margin: 14px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); line-height: 1.9; }
+  #stats-list b { color: var(--ink); font-family: var(--font-num); }
+
+  .overlay { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; z-index: 4; background: linear-gradient(180deg, rgba(10,24,44,.55), rgba(10,24,44,.82)); }
+  .overlay[hidden] { display: none; }
+  .panel { width: min(560px, 100%); padding: 34px 36px; background: rgba(14, 22, 34, .92); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 48px rgba(0,0,0,.6); }
+  .panel h1 { margin: 0; font-size: 44px; line-height: 1; letter-spacing: -.01em; }
+  .panel h1 span { color: var(--accent); }
+  .panel .tag { margin: 8px 0 0; font-size: 13px; letter-spacing: .22em; color: var(--muted); text-transform: uppercase; }
+  .panel p { margin: 18px 0; font-size: 15px; line-height: 1.55; color: #e8e2d4; }
+  .panel .story { border-left: 3px solid var(--accent); padding-left: 14px; color: var(--muted); font-style: italic; }
+  .btnrow { display: flex; gap: 10px; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; padding: 12px 20px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #1a1206; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  button:hover { filter: brightness(1.12); }
+  .keys { margin: 22px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+  .keys li { display: flex; align-items: center; gap: 7px; }
+  #mission-list { margin: 14px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--muted); line-height: 1.9; }
+  #mission-list b { color: var(--ink); }
+  #mission-list .done { color: #7ddc5a; }
+  #save-note { margin-top: 14px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div id="hud" hidden>
+  <div id="objective"><div id="objective-title"></div><div id="objective-sub"></div><div id="objective-dist"></div></div>
+  <div id="money">$0<small>SOLARA BAY</small></div>
+  <div id="wanted" aria-label="wanted level"></div>
+  <div id="healthbox"><span id="health-num">100</span><div id="health-bar"><div id="health-fill"></div></div><div id="armor-label">HEALTH — SOLARA BAY PD IS WATCHING</div></div>
+  <div id="hint"></div>
+  <div id="radio"></div>
+  <div id="clock"><span id="clock-time">08:00</span><small>SOLARA BAY</small></div>
+  <div id="minimap-wrap"><canvas id="minimap" width="180" height="180"></canvas></div>
+  <div id="speed" hidden><b>0</b> mph</div>
+  <div id="ammo" hidden><span id="ammo-mag">∞</span><div id="weapon-name">PISTOL</div></div>
+  <div id="crosshair" hidden><i></i><i></i><i></i><i></i></div>
+  <div id="interact" hidden></div>
+  <div id="banner" hidden></div>
+  <div id="toast" hidden><div id="toast-title"></div><div id="toast-sub"></div></div>
+</div>
+
+<div id="menu" class="overlay">
+  <section class="panel" role="dialog" aria-modal="true" aria-labelledby="game-title">
+    <h1 id="game-title">SOLARA <span>BAY</span></h1>
+    <p class="tag">An open-world crime game &middot; a city of your own</p>
+    <p class="story">You are Marlo Vane, fresh out of the county lockup with $120, a borrowed pistol and a debt to Ray Delgado. Solara Bay is sun, salt air and bad decisions. Steal a car. Run the jobs. Stay ahead of the Bay PD.</p>
+    <p>Explore the city on foot or behind the wheel, steal cars, outrun the police as your wanted level climbs, and work through Ray&rsquo;s story jobs &mdash; deliveries, a dockside shootout and a getaway. Cash pickups and taxi fares pay along the way. Progress saves to this browser.</p>
+    <div class="btnrow">
+      <button id="play" type="button">Start a new game</button>
+      <button id="continue" type="button" class="ghost" hidden>Continue — saved game</button>
+    </div>
+    <ul id="mission-list">
+      <li><b>1. Keys to the City</b> — steal a car, reach Ray&rsquo;s garage</li>
+      <li><b>2. Sunset Delivery</b> — run a package across town in 90 seconds</li>
+      <li><b>3. Dockside Trouble</b> — clear the rival crew at the docks</li>
+      <li><b>4. The Long Way Home</b> — lose a 3-star wanted level, reach the hideout</li>
+    </ul>
+    <ul class="keys">
+      <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move / drive</li>
+      <li><kbd>Mouse</kbd> Drag to look</li>
+      <li><kbd>E</kbd> Enter / exit car</li>
+      <li><kbd>Click</kbd> Shoot (on foot)</li>
+      <li><kbd>Shift</kbd> Sprint</li>
+      <li><kbd>Space</kbd> Jump / handbrake</li>
+      <li><kbd>M</kbd> Mute &nbsp; <kbd>P</kbd> Pause</li>
+      <li><kbd>R</kbd> Restart mission</li>
+      <li><kbd>C</kbd> Radio station &nbsp; <kbd>L</kbd> Headlights</li>
+      <li><kbd>J</kbd> Courier run (free roam)</li>
+      <li><kbd>Gamepad</kbd> Stick moves, A jumps, X enters car</li>
+    </ul>
+    <p id="save-note">Original game: its city, people, cars and story are invented for Solara Bay. Nothing here is from any commercial game.</p>
+  </section>
+</div>
+
+<div id="pause" class="overlay" hidden>
+  <section class="panel">
+    <h1>Paused</h1>
+    <p>Solara Bay waits. Your progress is saved when a job finishes &mdash; or save right now.</p>
+    <div class="btnrow">
+      <button id="resume" type="button">Resume</button>
+      <button id="save-now" type="button" class="ghost">Save game</button>
+      <button id="quit-menu" type="button" class="ghost">Quit to menu</button>
+    </div>
+    <ul id="stats-list">
+      <li>Time on the streets — <b id="stat-time">0m</b></li>
+      <li>Distance driven — <b id="stat-drive">0 km</b></li>
+      <li>Cars stolen — <b id="stat-cars">0</b> &nbsp; Fares done — <b id="stat-fares">0</b></li>
+      <li>Cash earned — <b id="stat-cash">$0</b> &nbsp; Times busted — <b id="stat-busted">0</b></li>
+    </ul>
+    <p id="save-note2">Saved to this browser.</p>
+  </section>
+</div>
+
+<div id="busted" class="overlay" hidden>
+  <section class="panel">
+    <h1 id="busted-title">BUSTED</h1>
+    <p id="busted-text">The Bay PD caught up with you. You lose $200 in fines and wake up outside the precinct.</p>
+    <div class="btnrow"><button id="busted-ok" type="button">Back on the streets</button></div>
+  </section>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

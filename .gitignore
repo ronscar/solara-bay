@@ -1,0 +1,4 @@
+# Build output: main.ts regenerates out/ on every run, so it never ships.
+out/
+# Local tooling installs stay out of the entry.
+node_modules/
